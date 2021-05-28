@@ -1,11 +1,11 @@
+using Cronos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using UNIT3D_Helper.Helpers;
 using UNIT3D_Helper.Services;
 
 namespace UNIT3D_Helper
@@ -28,7 +28,12 @@ namespace UNIT3D_Helper
                 using var scope = _services.CreateScope();
                 var unit3dClient = scope.ServiceProvider.GetRequiredService<Unit3dClient>();
                 await unit3dClient.ExecuteAsync(stoppingToken);
-                await Task.Delay(1000, stoppingToken);
+
+                CronExpression expression = CronExpression.Parse("0 0 * * WED");
+                DateTime? next = expression.GetNextOccurrence(DateTime.UtcNow, TimeZoneInfo.Utc).Value;
+                var delay = (next.Value - DateTime.UtcNow).TotalMilliseconds;
+                _logger.LogInformation("Next Cycle at: {time}", (DateTimeOffset)next.Value);
+                await Tools.SafeDelayAsync((int)delay, stoppingToken);
             }
         }
     }
