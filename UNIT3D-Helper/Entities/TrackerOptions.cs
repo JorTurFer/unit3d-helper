@@ -9,8 +9,9 @@ namespace UNIT3D_Helper.Entities
     public class TrackerOptions
     {
         public const string SectionName = "Tracker";
-        public Uri Url { get; set; }
+        public string Url { get; set; }
         public string Username { get; set; }
+        public string Password { get; set; }
         public string Coockie { get; set; }  
     }
 }

@@ -21,71 +21,103 @@ namespace UNIT3D_Helper.Services
         private readonly TrackerOptions _trackerOptions;
         private readonly string _torrentPattern;
         private int _elementCount = 0;
+        private LoginAssets _assets;
+        private int _filesInRowReadyPreviouslyBeforeStop;
+        private int _filesInRowReadyPreviously;
 
         public Unit3dClient(HttpClient client, IOptions<TrackerOptions> trackerOptions, ILogger<Unit3dClient> logger)
         {
             _client = client;
             _logger = logger;
             _trackerOptions = trackerOptions?.Value;
-            _torrentPattern = string.Concat(_trackerOptions.Url, @"torrents/(\d{1,10})");
+            _torrentPattern = string.Concat(_trackerOptions.Url, @"/torrents/(\d{1,10})");
         }
 
-        public async Task ExecuteAsync(CancellationToken cancellation)
+        public async Task ExecuteAsync(int FilesInRowReadyPreviouslyBeforeStop, CancellationToken cancellation)
         {
+            _filesInRowReadyPreviouslyBeforeStop = FilesInRowReadyPreviouslyBeforeStop;
             var page = 1;
             MatchCollection matches;
 
-            var token = await GetAntiforgeryTokenAsync();
+            await LoginAsync();
             do
             {
                 _logger.LogInformation("Processing page: {page}", page);
                 using var request = new HttpRequestMessage(new HttpMethod("POST"), $"users/{_trackerOptions.Username}/userFilters");
-
-                request.Content = new StringContent($"_token={token}&page={page}&sorting=created_at&direction=desc&name=&view=history");
+                request.Content = new StringContent($"_token={_assets.Token}&page={page}&sorting=created_at&direction=desc&name=&view=history");
 
                 request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
 
-                var response = await _client.SendAsync(request);
+                var response = await ExecuteRequestAsync(request);
                 var html = await response.Content.ReadAsStringAsync();
                 matches = Regex.Matches(html, _torrentPattern);
-                await ProcessMatchesAsync(matches,token);
+                await ProcessMatchesAsync(matches);
                 page++;
-            } while (matches.Count > 0);
+            } while (matches.Count > 0 && (_filesInRowReadyPreviously != _filesInRowReadyPreviouslyBeforeStop));
         }
 
-        private async Task<string> GetAntiforgeryTokenAsync()
+        private async Task LoginAsync()
         {
-            var request = await _client.GetAsync("torrents");
-            var html = await request.Content.ReadAsStringAsync();
-            var token = GetToken(html);
-            return token;
+            using var hello = new HttpRequestMessage(new HttpMethod("GET"), $"login");
+            await ExecuteRequestAsync(hello);
+
+            using var request = new HttpRequestMessage(new HttpMethod("POST"), $"login");
+            request.Content = new StringContent($"_token={_assets.Token}&username={_trackerOptions.Username}&password={_trackerOptions.Password}&_captcha={_assets.Captcha}&_username=&{_assets.Key}={_assets.Value}");
+
+            request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
+
+            var response = await ExecuteRequestAsync(request);
+
+            using var checkRequest = new HttpRequestMessage(new HttpMethod("GET"), "");
+            var check = await ExecuteRequestAsync(checkRequest);
+
+            check.EnsureSuccessStatusCode();
+            var html = await check.Content.ReadAsStringAsync();
+            if (!html.Contains(_trackerOptions.Username))
+            {
+                throw new HttpRequestException("Not correctly logged");
+            }
         }
 
-        private async Task ProcessMatchesAsync(MatchCollection matches,string token)
+        private async Task ProcessMatchesAsync(MatchCollection matches)
         {
             foreach (Match match in matches)
             {
-                var response = await _client.GetAsync($"torrents/{match.Groups[1].Value}");
+                using var request = new HttpRequestMessage(new HttpMethod("GET"), $"torrents/{match.Groups[1].Value}");
+                var response = await ExecuteRequestAsync(request);
                 var html = await response.Content.ReadAsStringAsync();
                 _logger.LogInformation($"\tProcessing element: {_elementCount} --> {Regex.Match(html, "<title>(.*)</title>").Groups[1].Value}");
-                await GiveThanksAsync(match, html,token);
-                await CommentAsync(match, html);
+                var neededComment = await CommentAsync(match, html);
+                var neededThanks = await GiveThanksAsync(match, html);
+
+                _filesInRowReadyPreviously = (neededThanks || neededThanks) ? 0 : _filesInRowReadyPreviously + 1;
+                               
                 _elementCount++;
+
+                if (_filesInRowReadyPreviously == _filesInRowReadyPreviouslyBeforeStop)
+                {
+                    _logger.LogInformation($"Reached {_filesInRowReadyPreviously} those dont need nothing in a row, skipping the cycle");
+                    break;
+                }
             }
         }
 
-        private async Task CommentAsync(Match match, string html)
+        private async Task<bool> CommentAsync(Match match, string html)
         {
-            if (!IsCommented(html))
+            var neededComment = !IsCommented(html);
+            if (neededComment)
             {
-                _ = await _client.GetAsync($"comments/thanks/{match.Groups[1].Value}");
+                using var request = new HttpRequestMessage(new HttpMethod("GET"), $"comments/thanks/{match.Groups[1].Value}");
+                _ = await ExecuteRequestAsync(request);
                 _logger.LogInformation($"\tComentario hecho");
             }
+            return neededComment;
         }
 
-        private async Task GiveThanksAsync(Match match, string html,string token)
+        private async Task<bool> GiveThanksAsync(Match match, string html)
         {
-            if (!IsGivenThanks(html))
+            var neededThanks = !IsGivenThanks(html);
+            if (neededThanks)
             {
                 var payload = JsonConvert.DeserializeObject<ThanksPayload>(HttpUtility.HtmlDecode(GetBody(html)));
                 var update = new Update
@@ -99,26 +131,53 @@ namespace UNIT3D_Helper.Services
                 };
                 payload.updates.Add(update);
 
-                var body = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 using var request = new HttpRequestMessage(new HttpMethod("POST"), "livewire/message/thank-button");
                 request.Headers.TryAddWithoutValidation("X-Livewire", "true");
+                request.Headers.TryAddWithoutValidation("X-CSRF-TOKEN", _assets.Token);
 
+                var body = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 request.Content = body;
                 request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
-                request.Headers.TryAddWithoutValidation("Referer", $"torrents/{match.Groups[1].Value}");
-                request.Headers.TryAddWithoutValidation("X-CSRF-TOKEN", token);
 
-                var response = await _client.SendAsync(request);
+                var response = await ExecuteRequestAsync(request);
                 response.EnsureSuccessStatusCode();
-
 
                 _logger.LogInformation($"\tGracias dadas");
             }
+            return neededThanks;
         }
 
-        private string GetToken(string html) => Regex.Match(html, "csrf-token\" content=\"(.*)\">").Groups[1].Value;
         private string GetBody(string html) => Regex.Match(html, "wire:initial-data=\"(.*)\" wire:click").Groups[1].Value;
         private bool IsGivenThanks(string html) => Regex.IsMatch(html, "thank-button.+   *disabled");
         private bool IsCommented(string html) => html.Contains("kabestrus</span></a></strong>");
+
+        private async Task<HttpResponseMessage> ExecuteRequestAsync(HttpRequestMessage request)
+        {
+            if (_assets is not null) request.Headers.TryAddWithoutValidation("Set-Cookie", _assets.Coockies);
+            var response = await _client.SendAsync(request);
+            _assets = await GetAssetsAsync(response);
+            return response;
+        }
+
+        private async Task<LoginAssets> GetAssetsAsync(HttpResponseMessage response)
+        {
+            var html = await response.Content.ReadAsStringAsync();
+            var token = Regex.Match(html, "csrf-token\" content=\"(.*)\">").Groups[1].Value;
+            var captcha = Regex.Match(html, "name=\"_captcha\" value=\"(.*)\" />").Groups[1].Value;
+            var match = Regex.Match(html, "name=\"(\\w{16})\" value=\"(\\d{10})\" />");
+            var key = match.Groups[1].Value;
+            var value = match.Groups[2].Value;
+            var coockies = response.Headers.GetValues("Set-Cookie");
+            return new LoginAssets { Token = token, Captcha = captcha, Key = key, Value = value, Coockies = coockies };
+        }
+
+        class LoginAssets
+        {
+            public string Token { get; set; }
+            public string Captcha { get; set; }
+            public string Key { get; set; }
+            public string Value { get; set; }
+            public IEnumerable<string> Coockies { get; set; }
+        }
     }
 }
