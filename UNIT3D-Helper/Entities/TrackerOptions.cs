@@ -12,6 +12,6 @@ namespace UNIT3D_Helper.Entities
         public string Url { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
-        public int DonationQuantity { get; set; } = -1;
+        public int TipQuantity { get; set; } = -1;
     }
 }
