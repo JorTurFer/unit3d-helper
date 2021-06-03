@@ -123,15 +123,14 @@ namespace UNIT3D_Helper.Services
 
         private async Task DonateAsync(Match match)
         {
-            if (_trackerOptions.TipQuantity > 0)
-            {
-                using var request = new HttpRequestMessage(new HttpMethod("POST"), $"torrents/{match.Groups[1].Value}/tip_uploader");
-                request.Content = new StringContent($"_token={_assets.Token}&tip={_trackerOptions.TipQuantity}");
-                request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
-                request.Headers.TryAddWithoutValidation("Referer", $"{_trackerOptions.Url}/torrents/{match.Groups[1].Value}");
-                _ = await ExecuteRequestAsync(request);
-                _logger.LogInformation($"\tPropina dada");
-            }            
+            if (_trackerOptions.TipQuantity <= 0) return;
+            
+            using var request = new HttpRequestMessage(new HttpMethod("POST"), $"torrents/{match.Groups[1].Value}/tip_uploader");
+            request.Content = new StringContent($"_token={_assets.Token}&tip={_trackerOptions.TipQuantity}");
+            request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
+            request.Headers.TryAddWithoutValidation("Referer", $"{_trackerOptions.Url}/torrents/{match.Groups[1].Value}");
+            _ = await ExecuteRequestAsync(request);
+            _logger.LogInformation($"\tPropina dada");
         }
 
         private async Task<bool> GiveThanksAsync(Match match, string html)
