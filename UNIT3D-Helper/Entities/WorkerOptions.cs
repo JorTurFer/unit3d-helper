@@ -10,6 +10,6 @@ namespace UNIT3D_Helper.Entities
     {
         public const string SectionName = "Worker";
         public string ExecutionCron { get; set; }
-        public int FilesInRowReadyPreviouslyBeforeStop { get; set; } = -1;
+        public int FilesInRowReadyPreviouslyBeforeStop { get; set; } = -1;        
     }
 }

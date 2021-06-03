@@ -89,8 +89,15 @@ namespace UNIT3D_Helper.Services
                 _logger.LogInformation($"\tProcessing element: {_elementCount} --> {Regex.Match(html, "<title>(.*)</title>").Groups[1].Value}");
                 var neededComment = await CommentAsync(match, html);
                 var neededThanks = await GiveThanksAsync(match, html);
-
-                _filesInRowReadyPreviously = (neededThanks || neededThanks) ? 0 : _filesInRowReadyPreviously + 1;
+                if(neededComment || neededThanks)
+                {
+                    await DonateAsync(match);
+                    _filesInRowReadyPreviously = 0;                    
+                }
+                else
+                {
+                    _filesInRowReadyPreviously++;
+                }
                                
                 _elementCount++;
 
@@ -112,6 +119,19 @@ namespace UNIT3D_Helper.Services
                 _logger.LogInformation($"\tComentario hecho");
             }
             return neededComment;
+        }
+
+        private async Task DonateAsync(Match match)
+        {
+            if (_trackerOptions.DonationQuantity > 0)
+            {
+                using var request = new HttpRequestMessage(new HttpMethod("POST"), $"torrents/{match.Groups[1].Value}/tip_uploader");
+                request.Content = new StringContent($"_token={_assets.Token}&tip={_trackerOptions.DonationQuantity}");
+                request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
+                request.Headers.TryAddWithoutValidation("Referer", $"{_trackerOptions.Url}/torrents/{match.Groups[1].Value}");
+                _ = await ExecuteRequestAsync(request);
+                _logger.LogInformation($"\tPropina dada");
+            }            
         }
 
         private async Task<bool> GiveThanksAsync(Match match, string html)
