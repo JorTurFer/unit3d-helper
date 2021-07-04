@@ -33,7 +33,7 @@ namespace UNIT3D_Helper
                 {
                     using var scope = _services.CreateScope();
                     var unit3dClient = scope.ServiceProvider.GetRequiredService<Unit3dClient>();
-                    //await unit3dClient.ExecuteAsync(_workerOptions.FilesInRowReadyPreviouslyBeforeStop,stoppingToken);
+                    await unit3dClient.ExecuteAsync(_workerOptions.FilesInRowReadyPreviouslyBeforeStop,stoppingToken);
                 }
 
                 using (var tracking = PrometheusMetricsHelper.TrackIdle())
