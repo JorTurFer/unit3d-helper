@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using UNIT3D_Helper.Entities;
+using UNIT3D_Helper.Helpers;
 
 namespace UNIT3D_Helper.Services
 {
@@ -117,6 +118,7 @@ namespace UNIT3D_Helper.Services
                 using var request = new HttpRequestMessage(new HttpMethod("GET"), $"comments/thanks/{match.Groups[1].Value}");
                 _ = await ExecuteRequestAsync(request);
                 _logger.LogInformation($"\tComentario hecho");
+                PrometheusMetricsHelper.IncreaseComments();
             }
             return neededComment;
         }
@@ -131,6 +133,7 @@ namespace UNIT3D_Helper.Services
             request.Headers.TryAddWithoutValidation("Referer", $"{_trackerOptions.Url}/torrents/{match.Groups[1].Value}");
             _ = await ExecuteRequestAsync(request);
             _logger.LogInformation($"\tPropina dada");
+            PrometheusMetricsHelper.IncreaseTips(_trackerOptions.TipQuantity);
         }
 
         private async Task<bool> GiveThanksAsync(Match match, string html)
@@ -162,6 +165,7 @@ namespace UNIT3D_Helper.Services
                 response.EnsureSuccessStatusCode();
 
                 _logger.LogInformation($"\tGracias dadas");
+                PrometheusMetricsHelper.IncreaseThanks();
             }
             return neededThanks;
         }

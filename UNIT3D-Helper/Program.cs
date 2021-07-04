@@ -1,8 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Prometheus;
 using System;
-using System.Net.Http.Headers;
+using System.Collections.Generic;
 using UNIT3D_Helper.Entities;
 using UNIT3D_Helper.Services;
 
@@ -12,6 +13,7 @@ namespace UNIT3D_Helper
     {
         public static void Main(string[] args)
         {
+            StartPrometheusServer();
             CreateHostBuilder(args).Build().Run();
         }
 
@@ -30,5 +32,12 @@ namespace UNIT3D_Helper
                     
                     services.AddHostedService<Worker>();
                 });
+
+        public static void StartPrometheusServer()
+        {
+            Metrics.SuppressDefaultMetrics();
+            var server = new MetricServer(hostname: "localhost", port: 9090);
+            server.Start();
+        }
     }
 }

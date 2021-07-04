@@ -29,15 +29,21 @@ namespace UNIT3D_Helper
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                using var scope = _services.CreateScope();
-                var unit3dClient = scope.ServiceProvider.GetRequiredService<Unit3dClient>();
-                await unit3dClient.ExecuteAsync(_workerOptions.FilesInRowReadyPreviouslyBeforeStop,stoppingToken);
+                using (var tracking = PrometheusMetricsHelper.TrackExecution())
+                {
+                    using var scope = _services.CreateScope();
+                    var unit3dClient = scope.ServiceProvider.GetRequiredService<Unit3dClient>();
+                    //await unit3dClient.ExecuteAsync(_workerOptions.FilesInRowReadyPreviouslyBeforeStop,stoppingToken);
+                }
 
-                CronExpression expression = CronExpression.Parse(_workerOptions.ExecutionCron);
-                DateTime? next = expression.GetNextOccurrence(DateTime.UtcNow, TimeZoneInfo.Utc).Value;
-                var delay = (next.Value - DateTime.UtcNow).TotalMilliseconds;
-                _logger.LogInformation("Next Cycle at: {time}", (DateTimeOffset)next.Value);
-                await Tools.SafeDelayAsync((int)delay, stoppingToken);
+                using (var tracking = PrometheusMetricsHelper.TrackIdle())
+                {
+                    CronExpression expression = CronExpression.Parse(_workerOptions.ExecutionCron);
+                    DateTime? next = expression.GetNextOccurrence(DateTime.UtcNow, TimeZoneInfo.Utc).Value;
+                    var delay = (next.Value - DateTime.UtcNow).TotalMilliseconds;
+                    _logger.LogInformation("Next Cycle at: {time}", (DateTimeOffset)next.Value);
+                    await Tools.SafeDelayAsync((int)delay, stoppingToken);
+                }
             }
         }
     }
