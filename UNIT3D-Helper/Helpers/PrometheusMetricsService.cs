@@ -9,7 +9,7 @@ namespace UNIT3D_Helper.Helpers
 {
     public static class PrometheusMetricsHelper
     {
-        private const string DataPath = "/stats";
+        private const string DataPath = "/stats/values";
         private static PrometheusData _data;
         static PrometheusMetricsHelper()
         {
