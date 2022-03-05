@@ -61,6 +61,7 @@ namespace UNIT3D_Helper.Entities
 
     public class Payload
     {
+        public string id { get; set; }
         public string method { get; set; }
         public List<int> @params { get; set; }
     }

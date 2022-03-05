@@ -115,7 +115,10 @@ namespace UNIT3D_Helper.Services
             var neededComment = !IsCommented(html);
             if (neededComment)
             {
-                using var request = new HttpRequestMessage(new HttpMethod("GET"), $"comments/thanks/{match.Groups[1].Value}");
+                using var request = new HttpRequestMessage(new HttpMethod("POST"), $"comments/thanks/{match.Groups[1].Value}");
+                request.Content = new StringContent($"_token={_assets.Token}&tip={_trackerOptions.TipQuantity}");
+                request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-www-form-urlencoded; charset=UTF-8");
+                request.Headers.TryAddWithoutValidation("Referer", $"{_trackerOptions.Url}/torrents/{match.Groups[1].Value}");
                 _ = await ExecuteRequestAsync(request);
                 _logger.LogInformation($"\tComentario hecho");
                 PrometheusMetricsHelper.IncreaseComments();
@@ -147,6 +150,7 @@ namespace UNIT3D_Helper.Services
                     type = "callMethod",
                     payload = new Payload
                     {
+                        id =  "",
                         method = "store",
                         @params = new List<int> { Convert.ToInt32(match.Groups[1].Value) }
                     }
