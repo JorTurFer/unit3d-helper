@@ -176,7 +176,7 @@ namespace UNIT3D_Helper.Services
 
         private string GetBody(string html) => Regex.Match(html, "wire:initial-data=\"(.*)\" wire:click").Groups[1].Value;
         private bool IsGivenThanks(string html) => Regex.IsMatch(html, "thank-button.+   *disabled");
-        private bool IsCommented(string html) => html.Contains("kabestrus</span></a></strong>");
+        private bool IsCommented(string html) => html.Contains($"{_trackerOptions.Username}</span></a></strong>");
 
         private async Task<HttpResponseMessage> ExecuteRequestAsync(HttpRequestMessage request)
         {
